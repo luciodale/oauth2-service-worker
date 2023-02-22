@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>My App</title>
+  </head>
+  <body>
+    <h1>My App. Go to dfocs</h1>
+    <div id="token">Click here to get token</div>
+    <div id="users">Click here to get users</div>
+    <div id="payload"></div>
+    <div id="random">Click here to get random</div>
+  </body>
+  <script type="module">
+    import { authCodeRequest } from "./oauth2.js";
+
+    const config = {
+      client_id: "surveyor",
+      redirect_uri: "https://surveyor.site.test/index.html",
+      authorization_endpoint: "https://service-wroker/",
+      token_endpoint: "https://auth.site.test/oauth/token",
+      requested_scopes: "",
+    };
+
+    authCodeRequest(config);
+
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+      }
+    });
+
+    navigator.serviceWorker.register(
+      "./service-worker.js?" +
+        new URLSearchParams({
+          lazy_oauth2_client_id: "example-client-id",
+          lazy_oauth2_token_url: "https://service-worker/token",
+          lazy_oauth2_protected_hostname: "service-worker",
+          lazy_oauth2_protected_pathname: "/api/*",
+        })
+    );
+  </script>
+
+  <script>
+    fetch("https://service-worker/token", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    document.getElementById("token").addEventListener("click", () => {
+      fetch("https://service-worker/token", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data);
+        });
+    });
+
+    document.getElementById("users").addEventListener("click", () => {
+      fetch("/api/users", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data);
+          document.getElementById("payload").innerHTML = JSON.stringify(data);
+        });
+
+      document.getElementById("random").addEventListener("click", () => {
+        fetch("/random", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log(data);
+          });
+      });
+    });
+  </script>
+</html>
