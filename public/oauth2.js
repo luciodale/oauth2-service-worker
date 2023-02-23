@@ -85,21 +85,21 @@ function sendAuthTokenRequestFn(
     }),
     credentials: "include",
   };
-
-  fetch(token_endpoint, options)
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      return response.json();
-    })
-    .then((data) => {
-      successFn(data);
-      window.history.replaceState({}, null, "/");
-    })
-    .catch((error) => {
-      errorFn(error);
-    });
+  code &&
+    fetch(token_endpoint, options)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        successFn(data);
+        window.history.replaceState({}, null, "/");
+      })
+      .catch((error) => {
+        errorFn(error);
+      });
 }
 
 export function useOAuth2({
