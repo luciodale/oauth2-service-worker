@@ -4,128 +4,41 @@
     <title>My App</title>
   </head>
   <body>
-    <h1>My App. Go to dfocs</h1>
+    <h1>HW</h1>
     <div id="authenticate">Click here to authenticate</div>
-    <div id="users">Click here to get users</div>
+    <div id="users">Protected endpoint data</div>
     <div id="payload"></div>
-    <div id="random">Click here to get random</div>
+    <div id="open">Open endpoint data</div>
+    <div id="payload-open"></div>
   </body>
   <script type="module">
-    import { authCodeRequest } from "./oauth2.js";
+    import { useOAuth2 } from "./oauth2.js";
 
-    const config = {
-      client_id: "surveyor",
-      redirect_uri: "https://service-worker/index.html",
-      authorization_endpoint: "https://service-worker/oauth/authorize",
+    const { sendAuthCodeRequest, sendAuthTokenRequest, isError } = useOAuth2({
+      client_id: "example-client-id",
       token_endpoint: "https://service-worker/oauth/token",
+      authorization_endpoint: "https://service-worker/oauth/authorize",
+      redirect_uri: "https://service-worker/index.html",
       requested_scopes: "",
-    };
-
-    document.getElementById("authenticate").addEventListener("click", () => {
-      authCodeRequest(config);
+      protected_hostname: "service-worker",
+      protected_pathname: "/api/*",
     });
 
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
-      }
-    });
+    document
+      .getElementById("authenticate")
+      .addEventListener("click", sendAuthCodeRequest);
 
-    navigator.serviceWorker.register(
-      "./service-worker.js?" +
-        new URLSearchParams({
-          lazy_oauth2_client_id: "example-client-id",
-          lazy_oauth2_token_url: "https://service-worker/oauth/token",
-          lazy_oauth2_protected_hostname: "service-worker",
-          lazy_oauth2_protected_pathname: "/api/*",
-        })
-    );
-
-    export function sendPostRequest(url, params, success, error) {
-      const request = new XMLHttpRequest();
-      request.open("POST", url, true);
-      request.setRequestHeader(
-        "Content-Type",
-        "application/x-www-form-urlencoded; charset=UTF-8"
-      );
-      request.withCredentials = true;
-      request.onload = function () {
-        const body = {};
-        try {
-          body = JSON.parse(request.response);
-        } catch (e) {}
-
-        if (request.status >= 200 && request.status < 300) {
-          success(request, body);
-        } else {
-          error(request, body);
-        }
-      };
-      request.onerror = function () {
-        error(request, {});
-      };
-      const body = Object.keys(params)
-        .map((key) => key + "=" + params[key])
-        .join("&");
-      request.send(body);
-    }
-
-    const params = new URLSearchParams(location.search.substring(1));
-
-    const { error, code, state } = Object.fromEntries(params.entries());
-
-    if (error) {
+    if (isError) {
       alert("ERROR");
-    }
-
-    if (code) {
-      console.log("state is" + state);
-
-      if (localStorage.getItem("pkce_state") !== state) {
-        alert("Invalid state");
-      } else {
-        // Exchange the authorization code for an access token
-        sendPostRequest(
-          config.token_endpoint,
-          {
-            grant_type: "authorization_code",
-            code: code,
-            client_id: config.client_id,
-            redirect_uri: config.redirect_uri,
-            code_verifier: localStorage.getItem("pkce_code_verifier"),
-          },
-          function (request, body) {
-            // Initialize your application now that you have an access token.
-            // Here we just display it in the browser.
-            alert("Token received!!!");
-
-            // Replace the history entry to remove the auth code from the browser address bar
-            window.history.replaceState({}, null, "/");
-          },
-          function (request, error) {
-            // This could be an error response from the OAuth server, or an error because the
-            // request failed such as if the OAuth server doesn't allow CORS requests
-            console.log(error);
-          }
-        );
-      }
+    } else {
+      sendAuthTokenRequest(
+        (data) => console.log("authenticated"),
+        (error) => console.log("not authenticated")
+      );
     }
   </script>
 
   <script>
-    document.getElementById("authenticate").addEventListener("click", () => {
-      fetch("https://service-worker/oauth/token", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log(data);
-        });
-    });
-
     document.getElementById("users").addEventListener("click", () => {
       fetch("/api/users", {
         method: "GET",
@@ -133,24 +46,32 @@
           "Content-Type": "application/json",
         },
       })
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) throw new Error("Network response was not ok");
+          return response.json();
+        })
         .then((data) => {
           console.log(data);
           document.getElementById("payload").innerHTML = JSON.stringify(data);
-        });
-
-      document.getElementById("random").addEventListener("click", () => {
-        fetch("/random", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
         })
-          .then((response) => response.json())
-          .then((data) => {
-            console.log(data);
-          });
-      });
+        .catch((error) => {
+          console.error(error);
+        });
+    });
+
+    document.getElementById("open").addEventListener("click", () => {
+      console.log("get to open-endpoint");
+      fetch("/open-endpoint", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          document.getElementById("payload-open").innerHTML =
+            JSON.stringify(data);
+        });
     });
   </script>
 </html>

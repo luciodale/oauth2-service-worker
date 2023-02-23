@@ -30,7 +30,7 @@ async function pkceChallengeFromVerifier(v) {
   return base64urlencode(hashed);
 }
 
-export async function authCodeRequest({
+async function sendAuthCodeRequestFn({
   client_id,
   redirect_uri,
   authorization_endpoint,
@@ -38,32 +38,112 @@ export async function authCodeRequest({
 }) {
   // Create and store a random "state" value
   const initState = generateRandomString();
+
   localStorage.setItem("pkce_state", initState);
-  console.log("initState:", initState);
+  console.log("state:", initState);
 
   // Create and store a new PKCE code_verifier (the plaintext random secret)
   const code_verifier = generateRandomString();
   localStorage.setItem("pkce_code_verifier", code_verifier);
+  console.log("code_verifier (not sent)", code_verifier);
 
   // Hash and base64-urlencode the secret to use as the challenge
   const code_challenge = await pkceChallengeFromVerifier(code_verifier);
+  console.log("code_challenge:", code_challenge);
 
   // Build the authorization URL
-  const url =
-    authorization_endpoint +
-    "?response_type=code" +
-    "&client_id=" +
-    encodeURIComponent(client_id) +
-    "&state=" +
-    encodeURIComponent(initState) +
-    "&scope=" +
-    encodeURIComponent(requested_scopes) +
-    "&redirect_uri=" +
-    encodeURIComponent(redirect_uri) +
-    "&code_challenge=" +
-    encodeURIComponent(code_challenge) +
-    "&code_challenge_method=S256" +
-    "&username=admin";
+  const queryParams = new URLSearchParams({
+    response_type: "code",
+    client_id,
+    state: initState,
+    scope: requested_scopes,
+    redirect_uri,
+    code_challenge,
+    code_challenge_method: "S256",
+  });
+
+  const url = `${authorization_endpoint}?${queryParams.toString()}`;
 
   window.location = url;
+}
+
+function sendAuthTokenRequestFn(
+  { token_endpoint, client_id, code },
+  successFn,
+  errorFn
+) {
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      client_id,
+      code_verifier: localStorage.getItem("pkce_code_verifier"),
+    }),
+    credentials: "include",
+  };
+
+  fetch(token_endpoint, options)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+      return response.json();
+    })
+    .then((data) => {
+      successFn(data);
+      window.history.replaceState({}, null, "/");
+    })
+    .catch((error) => {
+      errorFn(error);
+    });
+}
+
+export function useOAuth2({
+  client_id,
+  token_endpoint,
+  authorization_endpoint,
+  redirect_uri,
+  requested_scopes,
+  protected_hostname,
+  protected_pathname,
+}) {
+  navigator.serviceWorker.register(
+    `./service-worker.js?${new URLSearchParams({
+      client_id,
+      token_endpoint,
+      protected_hostname,
+      protected_pathname,
+    })}`
+  );
+
+  const sendAuthCodeRequest = () =>
+    sendAuthCodeRequestFn({
+      client_id,
+      redirect_uri,
+      authorization_endpoint,
+      requested_scopes,
+    });
+
+  const params = new URLSearchParams(location.search.substring(1));
+  const { error, code, state } = Object.fromEntries(params.entries());
+
+  const isInvalid =
+    error || (code && state !== localStorage.getItem("pkce_state"));
+  const isInvalidMessage = error
+    ? `Error: ${error}`
+    : "Response state does not match local state";
+  const isError = isInvalid && isInvalidMessage;
+
+  const sendAuthTokenRequest = (successFn, errorFn) =>
+    sendAuthTokenRequestFn(
+      { token_endpoint, client_id, code },
+      successFn,
+      errorFn
+    );
+
+  return { sendAuthCodeRequest, sendAuthTokenRequest, isError };
 }
