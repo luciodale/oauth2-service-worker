@@ -131,6 +131,8 @@ export function useOAuth2({
   const params = new URLSearchParams(location.search.substring(1));
   const { error, code, state } = Object.fromEntries(params.entries());
 
+  !code && sendAuthCodeRequest();
+
   const isInvalid =
     error || (code && state !== localStorage.getItem("pkce_state"));
   const isInvalidMessage = error

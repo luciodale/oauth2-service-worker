@@ -30,18 +30,13 @@ const token = {
 app.post("/oauth/token", (req, res) => {
   const { code } = req.body;
 
-  if (req.cookies.session) {
-    // assumes user is authenticated
+  if (code === codeState && code !== undefined) {
+    // send back access token
+    res.cookie("session", "authenticated", { httpOnly: true });
     res.json(token);
   } else {
-    if (code === codeState && code !== undefined) {
-      // send back access token
-      res.cookie("session", "authenticated", { httpOnly: true });
-      res.json(token);
-    } else {
-      // send back 401
-      res.status(401).send("Unauthorized");
-    }
+    // send back 401
+    res.status(401).send("Unauthorized");
   }
 });
 
