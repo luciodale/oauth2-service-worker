@@ -1,3 +1,5 @@
+import { generateRandomString, pkceChallengeFromVerifier } from "./utils.js";
+
 // to immediately install the service worker
 addEventListener("install", (event) => {
   // install on all site tabs without waiting for them to be opened
@@ -10,75 +12,130 @@ addEventListener("activate", (event) => {
   event.waitUntil(clients.claim());
 });
 
-const OAUTH2_TOKEN_ENDPOINT =
-  new URLSearchParams(location.search).get("token_endpoint") || "";
-const OAUTH2_PROTECTED_RESOURCE_URL = new URLPattern(
-  Object.fromEntries(
-    [...new URLSearchParams(location.search).entries()]
-      .filter(([key]) => key.startsWith("protected_"))
-      .map(([key, value]) => [key.replace("protected_", ""), value])
-  )
-);
+self.addEventListener("message", (event) => {
+  if (event.data.type === "update") {
+    const data = event.data.data;
+    console.log("data:", data);
+  }
+});
 
-let oauth2 = {
-  access_token: "",
-  token_type: "",
-  expires_in: 0,
-};
+const tokenStore = new Map();
 
-const isOauth2TokenURL = (url) => OAUTH2_TOKEN_ENDPOINT === url;
-const isOauth2ProtectedResourceURL = (url) =>
-  OAUTH2_PROTECTED_RESOURCE_URL.test(url);
+const config = [
+  {
+    origin: "https://home.juxt.site",
+    client_id: "alx-app",
+    token_endpoint: "https://auth.home.juxt.site/oauth/token",
+    authorization_endpoint: "https://auth.home.juxt.site/oauth/authorize",
+    redirect_uri: "http://localhost:3000/index.html",
+    requested_scopes: "",
+  },
+];
+
+async function createAuthorizationRequest({
+  client_id,
+  redirect_uri,
+  authorization_endpoint,
+  requested_scopes,
+}) {
+  // Create and store a random "state" value
+  const state = generateRandomString();
+
+  // Create and store a new PKCE code_verifier (the plaintext random secret)
+  const codeVerifier = generateRandomString();
+
+  // Build the authorization URL
+  const queryParams = new URLSearchParams({
+    response_type: "code",
+    client_id,
+    state,
+    scope: requested_scopes,
+    redirect_uri,
+    code_challenge: await pkceChallengeFromVerifier(codeVerifier),
+    code_challenge_method: "S256",
+  });
+
+  const url = `${authorization_endpoint}?${queryParams.toString()}`;
+
+  return {
+    request: new Request(url, { method: "GET", mode: "no-cors" }),
+    codeVerifier,
+    state,
+  };
+}
+
+function createAuthTokenRequest({
+  token_endpoint,
+  client_id,
+  code,
+  codeVerifier,
+}) {
+  return new Request(token_endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      client_id,
+      code_verifier: codeVerifier,
+    }),
+    credentials: "include",
+  });
+}
+
+function getConfigForOrigin(request) {
+  const { origin } = new URL(request.url);
+  return config.find((item) => item.origin === origin);
+}
 
 // to intercept the request and add the access token to the Authorization header when hitting the protected resource URL.
-const modifyRequest = (request) => {
-  console.log("is url protected?", isOauth2ProtectedResourceURL(request.url));
-  console.log("token_type", oauth2);
-  if (
-    isOauth2ProtectedResourceURL(request.url) &&
-    oauth2.token_type &&
-    oauth2.access_token
-  ) {
+async function attachBearerToken(request) {
+  const configItem = getConfigForOrigin(request);
+  if (!configItem) {
+    return request;
+  }
+
+  const { access_token } = tokenStore.get(configItem.origin) || {};
+
+  if (access_token) {
     const headers = new Headers(request.headers);
     if (!headers.has("Authorization")) {
-      headers.set(
-        "Authorization",
-        `${oauth2.token_type} ${oauth2.access_token}`
-      );
+      headers.set("Authorization", `Bearer ${access_token}`);
     }
     return new Request(request, { headers });
   }
 
-  return request;
-};
+  const authorizationRequest = await createAuthorizationRequest(configItem);
+  console.log("Authorization Request", authorizationRequest);
 
-// to intercept the response containing the access token. For all other responses, the original response is returned.
+  const authorizationResponse = await fetch(authorizationRequest.request);
+  console.log("Authorization Response", authorizationResponse);
+
+  const authTokenRequest = createAuthTokenRequest({
+    token_endpoint: configItem.token_endpoint,
+    client_id: configItem.client_id,
+    code: "TODO: grab from authorization respone?",
+    codeVerifier: authReq.codeVerifier,
+  });
+  console.log("AuthToken Request", authTokenRequest);
+
+  const authTokenResponse = await fetch(authTokenRequest);
+  console.log("AuthToken Response", authTokenResponse);
+}
+
 const modifyResponse = async (response) => {
-  if (isOauth2TokenURL(response.url) && response.status === 200) {
-    const { access_token, token_type, expires_in, ...payload } =
-      await response.json();
-
-    oauth2.access_token = access_token;
-    oauth2.token_type = token_type;
-    oauth2.expires_in = expires_in;
-
-    console.log("Set oauth2 object:", oauth2);
-
-    return new Response(JSON.stringify(payload, null, 2), {
-      headers: response.headers,
-      status: response.status,
-      statusText: response.statusText,
-    });
-  }
-
   return response;
 };
 
-const fetchWithCredentials = (input, init) => {
+async function fetchWithBearerToken(input, init) {
   const request = input instanceof Request ? input : new Request(input, init);
-  return fetch(modifyRequest(request)).then(modifyResponse);
-};
+  const attachBearerTokenFn = await attachBearerToken(request);
+  return fetch(attachBearerTokenFn);
+  // .then(modifyResponse);
+}
 
 addEventListener("fetch", (event) => {
-  event.respondWith(fetchWithCredentials(event.request));
+  event.respondWith(fetchWithBearerToken(event.request));
 });

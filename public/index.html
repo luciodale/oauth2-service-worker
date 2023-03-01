@@ -1,78 +1,50 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>My App</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  </head>
-  <body>
-    <h1>HW</h1>
-    <div id="authenticate">Click here to authenticate</div>
-    <div id="users">Protected endpoint data</div>
-    <div id="payload"></div>
-    <div id="open">Open endpoint data</div>
-    <div id="payload-open"></div>
-  </body>
-  <script type="module">
-    import { useOAuth2 } from "./oauth2.js";
 
-    const { sendAuthCodeRequest, sendAuthTokenRequest, isError } = useOAuth2({
-      client_id: "example-client-id",
-      token_endpoint: "https://service-worker/oauth/token",
-      authorization_endpoint: "https://service-worker/oauth/authorize",
-      redirect_uri: "https://service-worker/index.html",
-      requested_scopes: "",
-      protected_hostname: "service-worker",
-      protected_pathname: "/api/*",
+<head>
+  <title>My App</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+</head>
+
+<body>
+  <h1>HW</h1>
+  <div id="authenticate">Click here to authenticate</div>
+  <div id="users">Protected endpoint data</div>
+  <div id="payload"></div>
+  <div id="open">Open endpoint data</div>
+  <div id="payload-open"></div>
+</body>
+<script type="module">
+
+  navigator.serviceWorker
+    .register('./service-worker.js', {
+      type: "module",
+    })
+
+  // TODO: pass this somehow to the service worker
+  const config = [{
+    origin: "https://data.site.test",
+    client_id: "our-app",
+    token_endpoint: "http://localhost:3000/oauth/token",
+    authorization_endpoint: "http://localhost:3000/oauth/authorize",
+    redirect_uri: "http://localhost:3000/index.html",
+    requested_scopes: ""
+  }];
+
+  document
+    .getElementById("authenticate")
+    .addEventListener("click", () => {
+      fetch("https://home.juxt.site/_site/users")
     });
 
-    document
-      .getElementById("authenticate")
-      .addEventListener("click", sendAuthCodeRequest);
+  // if (isError) {
+  //   alert("ERROR");
+  // } else {
+  //   sendAuthTokenRequest(
+  //     (data) => console.log("authenticated"),
+  //     (error) => console.log("not authenticated")
+  //   );
+  // }
+</script>
 
-    if (isError) {
-      alert("ERROR");
-    } else {
-      sendAuthTokenRequest(
-        (data) => console.log("authenticated"),
-        (error) => console.log("not authenticated")
-      );
-    }
-  </script>
-
-  <script>
-    document.getElementById("users").addEventListener("click", () => {
-      fetch("/api/users", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error("Network response was not ok");
-          return response.json();
-        })
-        .then((data) => {
-          console.log(data);
-          document.getElementById("payload").innerHTML = JSON.stringify(data);
-        })
-        .catch((error) => {
-          console.error(error);
-        });
-    });
-
-    document.getElementById("open").addEventListener("click", () => {
-      console.log("get to open-endpoint");
-      fetch("/open-endpoint", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          document.getElementById("payload-open").innerHTML =
-            JSON.stringify(data);
-        });
-    });
-  </script>
 </html>

@@ -29,15 +29,7 @@ const token = {
 
 app.post("/oauth/token", (req, res) => {
   const { code } = req.body;
-
-  if (code === codeState && code !== undefined) {
-    // send back access token
-    res.cookie("session", "authenticated", { httpOnly: true });
-    res.json(token);
-  } else {
-    // send back 401
-    res.status(401).send("Unauthorized");
-  }
+  res.json(token);
 });
 
 app.get("/open-endpoint", (req, res) => {
@@ -45,7 +37,6 @@ app.get("/open-endpoint", (req, res) => {
 });
 
 const checkAuth = (req, res, next) => {
-  console.log("in check auth");
   const { authorization } = req.headers;
   const token = authorization && authorization.split(" ")[1];
   if (token === "token") {
