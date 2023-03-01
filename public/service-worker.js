@@ -117,7 +117,7 @@ async function attachBearerToken(request) {
     token_endpoint: configItem.token_endpoint,
     client_id: configItem.client_id,
     code: "TODO: grab from authorization respone?",
-    codeVerifier: authReq.codeVerifier,
+    codeVerifier: authorizationRequest.codeVerifier,
   });
   console.log("AuthToken Request", authTokenRequest);
 
