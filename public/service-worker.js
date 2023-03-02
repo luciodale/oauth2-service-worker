@@ -91,7 +91,7 @@ function getConfigForOrigin(request) {
 }
 
 // to intercept the request and add the access token to the Authorization header when hitting the protected resource URL.
-async function attachBearerToken(request) {
+async function attachBearerToken(request, clientId) {
   const configItem = getConfigForOrigin(request);
   if (!configItem) {
     return request;
@@ -111,7 +111,41 @@ async function attachBearerToken(request) {
   console.log("Authorization Request", authorizationRequest);
 
   const authorizationResponse = await fetch(authorizationRequest.request);
+  console.log("in heref");
   console.log("Authorization Response", authorizationResponse);
+  const { location } = { ...authorizationResponse.headers };
+
+  const locationUrl = new URL(location);
+  const redirectUrl = new URL(configItem.redirect_uri);
+
+  if (locationUrl.origin !== redirectUrl.origin) {
+    (async () => {
+      // Exit early if we don't have access to the client.
+      // Eg, if it's cross-origin.
+      if (!clientId) return;
+
+      // Get the client.
+      const client = await clients.get(clientId);
+      // Exit early if we don't get the client.
+      // Eg, if it closed.
+      if (!client) return;
+
+      // Send a message to the client.
+      client.postMessage({
+        msg: "Hey I just got a fetch from you!",
+        url: request.url,
+      });
+    })();
+  }
+
+  if (locationUrl.origin === redirectUrl.origin) {
+    const queryParams = new URLSearchParams(locationUrl.search);
+    const code = queryParams.get("code");
+    const state = queryParams.get("state");
+    if (code && state) {
+    }
+  } else {
+  }
 
   const authTokenRequest = createAuthTokenRequest({
     token_endpoint: configItem.token_endpoint,
@@ -129,9 +163,10 @@ const modifyResponse = async (response) => {
   return response;
 };
 
-async function fetchWithBearerToken(input, init) {
-  const request = input instanceof Request ? input : new Request(input, init);
-  const attachBearerTokenFn = await attachBearerToken(request);
+async function fetchWithBearerToken({ request, clientId }) {
+  const newRequest =
+    request instanceof Request ? request : new Request(request);
+  const attachBearerTokenFn = await attachBearerToken(newRequest, clientId);
   return fetch(attachBearerTokenFn);
   // .then(modifyResponse);
 }
