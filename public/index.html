@@ -21,6 +21,11 @@
       type: "module",
     })
 
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    console.log("in service onmessage")
+    console.log(event.data.msg, event.data.url);
+  });
+
   // TODO: pass this somehow to the service worker
   const config = [{
     origin: "https://data.site.test",
@@ -37,14 +42,6 @@
       fetch("https://home.juxt.site/_site/users")
     });
 
-  // if (isError) {
-  //   alert("ERROR");
-  // } else {
-  //   sendAuthTokenRequest(
-  //     (data) => console.log("authenticated"),
-  //     (error) => console.log("not authenticated")
-  //   );
-  // }
 </script>
 
 </html>

@@ -36,18 +36,6 @@ app.get("/open-endpoint", (req, res) => {
   res.json([{ name: "Random1" }, { name: "Random2" }]);
 });
 
-const checkAuth = (req, res, next) => {
-  const { authorization } = req.headers;
-  const token = authorization && authorization.split(" ")[1];
-  if (token === "token") {
-    next();
-  } else {
-    res.status(401).send("Unauthorized");
-  }
-};
-
-app.use(checkAuth);
-
 app.get("/api/users", (req, res) => {
   res.json({ users: [{ name: "John" }, { name: "Jane" }] });
 });
