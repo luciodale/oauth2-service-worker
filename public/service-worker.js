@@ -23,12 +23,13 @@ const tokenStore = new Map();
 
 const config = [
   {
-    origin: "https://home.juxt.site",
     client_id: "surveyor",
-    token_endpoint: "https://auth.home.juxt.site/oauth/token",
-    authorization_endpoint: "https://auth.home.juxt.site/oauth/authorize",
-    redirect_uri: "http://localhost:3000/index.html",
+    origin: "https://surveyor.site.test",
+    redirect_uri: "https://surveyor.site.test:3000/index.html",
     requested_scopes: "",
+    // These are from metadata
+    authorization_endpoint: "https://auth.site.test/oauth/authorize",
+    token_endpoint: "https://auth.site.test/oauth/token"
   },
 ];
 
@@ -61,6 +62,8 @@ async function createAuthorizationRequest({
     request: new Request(url, { method: "GET", credentials: "include" }),
     codeVerifier,
     state,
+    // This is required so we can intercept the redirect
+    redirect: 'manual'
   };
 }
 
@@ -134,7 +137,12 @@ async function attachBearerToken(request, clientId) {
   const locationUrl = new URL(location);
   const redirectUrl = new URL(configItem.redirect_uri);
 
+  console.log("mal> no access token yet, but we have an authorization response");
+  console.log("mal> locationUrl.origin is " + locationUrl.origin);
+  console.log("mal> redirectUrl.origin is " + redirectUrl.origin);
+
   if (locationUrl.origin !== redirectUrl.origin) {
+    console.log("mal> ");
     await sendMessage({
       type: "redirect",
       data: { url: locationUrl },

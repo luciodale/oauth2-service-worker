@@ -30,16 +30,16 @@
   const config = [{
     origin: "https://data.site.test",
     client_id: "our-app",
-    token_endpoint: "http://localhost:3000/oauth/token",
-    authorization_endpoint: "http://localhost:3000/oauth/authorize",
-    redirect_uri: "http://localhost:3000/index.html",
+    authorization_endpoint: "https://auth.site.test/oauth/authorize",
+    token_endpoint: "https://auth.site.test/oauth/token",
+    redirect_uri: "https://surveyor.site.test/index.html",
     requested_scopes: ""
   }];
 
   document
     .getElementById("authenticate")
     .addEventListener("click", () => {
-      fetch("https://home.juxt.site/_site/users")
+      fetch("https://data.site.test/_site/users")
     });
 
 </script>
